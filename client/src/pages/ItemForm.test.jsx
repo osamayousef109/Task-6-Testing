@@ -44,6 +44,42 @@ describe('ItemForm — report mode (/items/new)', () => {
     expect(category).toHaveValue('other')
   })
 
-  test.todo('submitting POSTs { title, status, category, location, description } (no reportedBy) and navigates to /items')
-  test.todo('shows the server\'s message when the request fails (e.g. 409) and stays on the page')
+  test('submits exactly the report fields and navigates to /items', async () => {
+    const user = userEvent.setup()
+    const report = {
+      title: 'Black backpack',
+      status: 'found',
+      category: 'accessories',
+      location: 'Library',
+      description: 'Has a blue keychain'
+    }
+    api.post.mockResolvedValueOnce({ data: { item: report } })
+    renderAt('/items/new')
+
+    await user.type(screen.getByPlaceholderText(/title/i), report.title)
+    const [status, category] = screen.getAllByRole('combobox')
+    await user.selectOptions(status, report.status)
+    await user.selectOptions(category, report.category)
+    await user.type(screen.getByPlaceholderText(/location/i), report.location)
+    await user.type(screen.getByPlaceholderText(/description/i), report.description)
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(api.post.mock.calls).toStrictEqual([['/items', report]])
+    expect(await screen.findByText('Items page')).toBeInTheDocument()
+  })
+
+  test('shows the server error and stays on the report form', async () => {
+    const user = userEvent.setup()
+    const message = 'Duplicate item at this location'
+    api.post.mockRejectedValueOnce({ response: { data: { message } } })
+    renderAt('/items/new')
+
+    await user.type(screen.getByPlaceholderText(/title/i), 'Black backpack')
+    await user.type(screen.getByPlaceholderText(/location/i), 'Library')
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(await screen.findByText(message)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Report Item' })).toBeInTheDocument()
+    expect(screen.queryByText('Items page')).not.toBeInTheDocument()
+  })
 })
